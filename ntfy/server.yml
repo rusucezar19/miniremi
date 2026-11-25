@@ -1,0 +1,31 @@
+# ntfy server configuration for Certificate Tracker (ntfy v2.38).
+# Option names checked against https://docs.ntfy.sh/config/
+# Mounted read-only at /etc/ntfy/server.yml. The ntfy CLI inside the container reads it too,
+# so `docker exec -it certtracker-ntfy ntfy user add ...` finds the auth database.
+
+# Public address phones use (the Tailscale Funnel URL on port 10000).
+# docker-compose.yml sets it from NTFY_PUBLIC_URL in .env through NTFY_BASE_URL,
+# which takes precedence over this file. Keep both in sync if you set it here.
+# base-url: "https://paranas.tailXXXX.ts.net:10000"
+
+# Plain HTTP inside the container (non-root, so not port 80). Tailscale terminates HTTPS.
+listen-http: ":2586"
+
+# Tailscale Funnel is a reverse proxy: use X-Forwarded-For for visitor IPs / rate limiting.
+behind-proxy: true
+
+# Access control: nobody can read or write unless granted via the ntfy CLI.
+auth-file: "/var/lib/ntfy/auth.db"
+auth-default-access: "deny-all"
+
+# Keep messages for 72 hours so phones that were offline catch up.
+cache-file: "/var/lib/ntfy/cache.db"
+cache-duration: "72h"
+
+# Instant delivery on iPhone: only a wake-up (message ID + hashed topic URL) goes to ntfy.sh,
+# never the message text.
+upstream-base-url: "https://ntfy.sh"
+
+# Attachments are not used; leaving attachment-cache-dir unset keeps them disabled.
+
+log-level: "info"

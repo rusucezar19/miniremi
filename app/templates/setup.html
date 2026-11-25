@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}First-run setup{% endblock %}
+{% block content %}
+<form method="post" action="/setup" class="panel narrow form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <h1>Create the admin account</h1>
+  <p class="muted">This screen is shown once. To prove you run this server, enter the setup code from
+    <code>data/setup-code.txt</code> on the NAS (for example <code>cat data/setup-code.txt</code> in the project folder).</p>
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <label class="field"><span>Setup code</span><input name="setup_code" autocomplete="off" autocapitalize="none" required></label>
+  <label class="field"><span>Admin username</span><input name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" required></label>
+  <label class="field"><span>Password (min. {{ min_len }} characters)</span><input type="password" name="password" minlength="{{ min_len }}" autocomplete="new-password" required></label>
+  <label class="field"><span>Repeat password</span><input type="password" name="confirm" minlength="{{ min_len }}" autocomplete="new-password" required></label>
+  <div class="form-actions"><button class="btn primary" type="submit">Create admin</button></div>
+</form>
+{% endblock %}

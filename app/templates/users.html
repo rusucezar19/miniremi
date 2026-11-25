@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<h1>Users</h1>
+<div class="tablewrap">
+<table class="grid">
+  <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.username }}{% if u.id == user.id %} <span class="muted small">(you)</span>{% endif %}</td>
+    <td>{{ 'Admin' if u.is_admin else 'User' }}</td>
+    <td>{% if u.disabled %}<span class="badge st-nodate">Disabled</span>{% elif u.locked_until %}<span class="badge st-due">Lockout until {{ u.locked_until[:16].replace('T',' ') }} UTC</span>{% else %}<span class="badge st-ok">Active</span>{% endif %}
+        {% if u.must_change_password %}<span class="muted small">must change password</span>{% endif %}</td>
+    <td class="user-actions">
+      {% for op, label in ((('enable','Enable') if u.disabled else ('disable','Disable')), (('revoke_admin','Remove admin') if u.is_admin else ('make_admin','Make admin'))) %}
+      <form method="post" action="/users/{{ u.id }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small" name="op" value="{{ op }}">{{ label }}</button></form>
+      {% endfor %}
+      <details class="inline-details"><summary class="btn small">Reset password</summary>
+        <form method="post" action="/users/{{ u.id }}" class="row">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="op" value="reset">
+          <input type="password" name="password" minlength="{{ min_len }}" placeholder="Temporary password" autocomplete="new-password" required>
+          <button class="btn small primary" type="submit">Set</button>
+        </form>
+      </details>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<form method="post" action="/users/add" class="panel form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <h2>Add a user</h2>
+  <label class="field"><span>Username</span><input name="username" maxlength="40" autocapitalize="none" required></label>
+  <label class="field"><span>Temporary password (min. {{ min_len }} characters; they choose their own at first login)</span><input type="password" name="password" minlength="{{ min_len }}" autocomplete="new-password" required></label>
+  <label class="field field-check"><span>Admin (can change columns, users and settings)</span><input type="checkbox" name="is_admin"></label>
+  <div class="form-actions"><button class="btn primary" type="submit">Create user</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Certificates">
+  <title>{% block title %}Certificates{% endblock %} · Certificate Tracker</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+  <link rel="stylesheet" href="/static/app.css?v=1">
+  <script src="/static/app.js?v=1" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><img src="/static/icons/icon.svg" alt="" width="26" height="26"><span>Certificates</span></a>
+  {% if user %}
+  <button class="iconbtn navtoggle" type="button" data-toggle="nav" aria-label="Menu">☰</button>
+  <nav id="nav" class="nav">
+    <a href="/">Entries</a>
+    <a href="/entries/new">New entry</a>
+    <a href="/notifications">Notification setup</a>
+    {% if can(user, 'manage_columns') %}<a href="/columns">Columns</a>{% endif %}
+    {% if can(user, 'manage_users') %}<a href="/users">Users</a>{% endif %}
+    {% if can(user, 'manage_settings') %}<a href="/settings">Settings</a>{% endif %}
+    <a href="/account">{{ user.username }}</a>
+    <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="linkbtn" type="submit">Log out</button></form>
+    <button class="iconbtn" type="button" data-theme-toggle aria-label="Toggle dark mode">◐</button>
+  </nav>
+  {% else %}
+  <button class="iconbtn" type="button" data-theme-toggle aria-label="Toggle dark mode">◐</button>
+  {% endif %}
+</header>
+<main class="container">
+  {% if flash %}<div class="flash flash-{{ flash.kind }}" role="status">{{ flash.text }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+{% block dialogs %}{% endblock %}
+</body>
+</html>

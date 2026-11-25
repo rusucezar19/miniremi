@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Account{% endblock %}
+{% block content %}
+<form method="post" action="/account/password" class="panel narrow form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <h1>Change password</h1>
+  <p class="muted">Logged in as <strong>{{ user.username }}</strong>{% if user.is_admin %} (admin){% endif %}.</p>
+  {% if user.must_change_password %}<div class="flash flash-warn">Your password was set by an admin. Choose your own password to continue.</div>{% endif %}
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <label class="field"><span>Current password</span><input type="password" name="current" autocomplete="current-password" required></label>
+  <label class="field"><span>New password (min. {{ min_len }} characters)</span><input type="password" name="password" minlength="{{ min_len }}" autocomplete="new-password" required></label>
+  <label class="field"><span>Repeat new password</span><input type="password" name="confirm" minlength="{{ min_len }}" autocomplete="new-password" required></label>
+  <div class="form-actions"><button class="btn primary" type="submit">Change password</button></div>
+</form>
+{% endblock %}

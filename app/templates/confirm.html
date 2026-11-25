@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<form method="post" action="{{ action }}" class="panel narrow">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  {% for k, v in (hidden or {}).items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  <div class="form-actions">
+    <a class="btn ghost" href="{{ cancel }}">Cancel</a>
+    <button class="btn danger" type="submit">{{ button }}</button>
+  </div>
+</form>
+{% endblock %}

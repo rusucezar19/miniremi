@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, quick_actions, card, snooze_dialog, renew_dialog with context %}
+{% block title %}Entries{% endblock %}
+{% block content %}
+<section class="summary" aria-label="Status summary">
+  {% for s in STATUSES %}{% if counts[s] or s in ('expired','due','approaching','ok') %}
+  <a class="stat st-{{ s }} {% if f.status == s %}active{% endif %}" href="?view={{ f.view }}&status={{ '' if f.status == s else s }}">
+    <strong>{{ counts[s] }}</strong><span>{{ STATUS_LABELS[s] }}</span>
+  </a>
+  {% endif %}{% endfor %}
+</section>
+
+<form class="filters" method="get" action="/">
+  <input type="hidden" name="view" value="{{ f.view }}">
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Search…" aria-label="Search">
+  <select name="status" aria-label="Status">
+    <option value="">All statuses</option>
+    <option value="attention" {% if f.status == 'attention' %}selected{% endif %}>Needs attention</option>
+    {% for s in STATUSES %}<option value="{{ s }}" {% if f.status == s %}selected{% endif %}>{{ STATUS_LABELS[s] }}</option>{% endfor %}
+  </select>
+  {% if f.center_col %}
+  <select name="center" aria-label="{{ f.center_col.name }}">
+    <option value="">All {{ f.center_col.name|lower }}s</option>
+    {% for o in center_options %}<option value="{{ o }}" {% if f.center == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  {% if f.view == 'grouped' %}
+  <select name="group" aria-label="Group by">
+    {% for c in groupable %}<option value="{{ c.id }}" {% if f.group_col and f.group_col.id == c.id %}selected{% endif %}>Group by {{ c.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  {% if f.view == 'timeline' %}
+  <select name="months" aria-label="Range">
+    {% for m in (3, 6, 12, 24) %}<option value="{{ m }}" {% if f.months == m %}selected{% endif %}>Next {{ m }} months</option>{% endfor %}
+  </select>
+  {% endif %}
+  <button class="btn" type="submit">Apply</button>
+  {% if f.q or f.status or f.center %}<a class="btn ghost" href="/?view={{ f.view }}">Clear</a>{% endif %}
+</form>
+
+<div class="toolbar">
+  <nav class="tabs" aria-label="View">
+    {% for v, label in (('cards','Cards'),('grouped','Grouped'),('timeline','Timeline'),('table','Table')) %}
+    <a href="?view={{ v }}&q={{ f.q|urlencode }}&status={{ f.status }}&center={{ f.center|urlencode }}" class="{% if f.view == v %}active{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <div class="toolbar-right">
+    <span class="muted small">{{ entries|length }} of {{ total }}</span>
+    <a class="btn small" href="/export.csv">Export CSV</a>
+    <a class="btn small primary" href="/entries/new">+ New</a>
+  </div>
+</div>
+
+<form id="bulk-form" method="post" action="/entries/bulk-snooze" class="bulkbar" hidden>
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <span><strong data-bulk-count>0</strong> selected</span>
+  <select name="preset" aria-label="Snooze for">
+    {% for n, unit, label in snooze_presets %}<option value="{{ n }}:{{ unit }}">Snooze {{ label }}</option>{% endfor %}
+  </select>
+  <button class="btn primary small" type="submit">Snooze selected</button>
+  <button class="btn ghost small" type="button" data-bulk-clear>Clear</button>
+</form>
+
+{% if not entries %}
+  <div class="empty">
+    {% if total == 0 %}<p>No entries yet.</p><a class="btn primary" href="/entries/new">Add the first certificate</a>
+    {% else %}<p>No entries match these filters.</p>{% endif %}
+  </div>
+{% elif f.view == 'cards' %}
+  <div class="cards">
+    {% for e in entries %}{{ card(e, back) }}{% endfor %}
+  </div>
+{% elif f.view == 'grouped' %}
+  {% for name, items in groups %}
+  <details class="group" open>
+    <summary><span>{{ name }}</span><span class="muted small">{{ items|length }}</span></summary>
+    <div class="cards">{% for e in items %}{{ card(e, back) }}{% endfor %}</div>
+  </details>
+  {% endfor %}
+{% elif f.view == 'timeline' %}
+  <div class="timeline">
+    <div class="tl-axis">
+      {% for t in tl.ticks %}<span class="tl-tick" style="left: {{ t.pct }}%">{{ t.label }}</span>{% endfor %}
+    </div>
+    {% for r in tl.rows %}
+    <div class="tl-row">
+      <a class="tl-label" href="/entries/{{ r.e.id }}">{{ r.e.title }}<small>{{ fmt_date(r.e.expiry) }}</small></a>
+      <div class="tl-track">
+        <span class="tl-today" style="left: {{ tl.today }}%" title="Today"></span>
+        <span class="tl-bar st-{{ r.e.status }}" style="left: {{ r.left }}%; width: {{ r.width }}%"
+              title="Notification window {{ fmt_date(r.e.trigger) }} → expiry {{ fmt_date(r.e.expiry) }}"></span>
+        {% if not r.clipped_right %}<span class="tl-marker st-{{ r.e.status }}" style="left: {{ r.marker }}%"></span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    <p class="muted small">Bars show the notification window (trigger date → expiry date). The vertical line is today.
+      {% if tl.hidden %}{{ tl.hidden }} entr{{ 'y is' if tl.hidden == 1 else 'ies are' }} outside this range.{% endif %}
+      {% if tl.nodate %}{{ tl.nodate }} without expiry date.{% endif %}</p>
+  </div>
+{% elif f.view == 'table' %}
+  <div class="tablewrap">
+  <table class="grid" data-sortable>
+    <thead><tr>
+      <th class="sel"><input type="checkbox" data-bulk-all aria-label="Select all"></th>
+      <th data-sort="status">Status</th>
+      {% for c in columns %}<th data-sort="{{ c.id }}" data-type="{{ c.type }}">{{ c.name }}</th>{% endfor %}
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for e in entries %}
+      <tr data-entry="{{ e.id }}">
+        <td class="sel"><input type="checkbox" class="bulk-check" value="{{ e.id }}" aria-label="Select"></td>
+        <td data-sortval="{{ STATUSES.index(e.status) }}">{{ badge(e) }}</td>
+        {% for c in columns %}
+        {% set v = e.value(c) %}
+        <td class="editable t-{{ c.type }}" data-col="{{ c.id }}" data-type="{{ c.type }}"
+            data-sortval="{{ (v.n * (7 if v.unit == 'weeks' else 1)) if c.type == 'duration' and v else (v if v is not none else '') }}"
+            {% if c.type == 'select' %}data-options="{{ c.options|tojson|forceescape }}"{% endif %}
+            tabindex="0">{{ e.display(c) }}</td>
+        {% endfor %}
+        <td class="nowrap">{{ quick_actions(e, back) }} <a class="btn small ghost" href="/entries/{{ e.id }}?back={{ back|urlencode }}">Open</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">Tap a cell to edit it. Tap a header to sort.</p>
+{% endif %}
+{% endblock %}
+
+{% block dialogs %}{{ snooze_dialog(snooze_presets, back) }}{{ renew_dialog(back) }}{% endblock %}

@@ -1,0 +1,9 @@
+.git
+.env
+data
+ntfy
+tests
+tools
+**/__pycache__
+*.docx
+.pytest_cache

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Columns{% endblock %}
+{% block content %}
+<h1>Table columns</h1>
+<p class="muted">Columns marked <span class="pill">reminder</span> drive the reminder logic: they can be renamed but not deleted, and their type is fixed.</p>
+
+<div class="colslist">
+{% for col in columns %}
+  <section class="panel col-item">
+    <div class="col-head">
+      <div class="col-order">
+        <form method="post" action="/columns/{{ col.id }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="iconbtn" name="op" value="up" {% if loop.first %}disabled{% endif %} aria-label="Move up">▲</button></form>
+        <form method="post" action="/columns/{{ col.id }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="iconbtn" name="op" value="down" {% if loop.last %}disabled{% endif %} aria-label="Move down">▼</button></form>
+      </div>
+      <form method="post" action="/columns/{{ col.id }}" class="row grow">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="op" value="rename">
+        <input name="name" value="{{ col.name }}" maxlength="60" required aria-label="Column name">
+        <button class="btn small" type="submit">Rename</button>
+      </form>
+    </div>
+    <div class="col-meta">
+      {% if col.protected %}
+        <span class="pill">reminder</span> <span class="muted">{{ col.type_label }}</span>
+      {% else %}
+        <form method="post" action="/columns/{{ col.id }}/type" class="row">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <select name="type" aria-label="Type">{% for t, label in COLUMN_TYPES.items() %}<option value="{{ t }}" {% if t == col.type %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          <button class="btn small" type="submit">Change type</button>
+        </form>
+        <a class="btn small danger" href="/columns/{{ col.id }}/delete">Delete…</a>
+      {% endif %}
+      <span class="muted small">{{ counts[col.id] }} entr{{ 'y' if counts[col.id] == 1 else 'ies' }} with data</span>
+    </div>
+    {% if col.type == 'select' %}
+    <form method="post" action="/columns/{{ col.id }}" class="form">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="op" value="options">
+      <label class="field"><span>Options (one per line). New values typed in entries are added automatically.</span>
+        <textarea name="options" rows="3">{{ col.options|join('\n') }}</textarea></label>
+      <button class="btn small" type="submit">Save options</button>
+    </form>
+    {% endif %}
+  </section>
+{% endfor %}
+</div>
+
+<form method="post" action="/columns/add" class="panel form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <h2>Add a column</h2>
+  <label class="field"><span>Name</span><input name="name" maxlength="60" required></label>
+  <label class="field"><span>Type</span><select name="type">{% for t, label in COLUMN_TYPES.items() %}<option value="{{ t }}">{{ label }}</option>{% endfor %}</select></label>
+  <label class="field"><span>Options for single select (one per line, optional)</span><textarea name="options" rows="3"></textarea></label>
+  <div class="form-actions"><button class="btn primary" type="submit">Add column</button></div>
+</form>
+{% endblock %}

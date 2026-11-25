@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_input with context %}
+{% block title %}New entry{% endblock %}
+{% block content %}
+<p><a href="/" class="muted">← Back</a></p>
+<form method="post" action="/entries/new" class="panel form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <h1>New entry</h1>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  {% for col in columns %}
+  <label class="field {% if col.type == 'checkbox' %}field-check{% endif %}">
+    <span>{{ col.name }}{% if col.role in ('expiry', 'window') %} <small class="muted">(used for reminders)</small>{% endif %}</span>
+    {{ field_input(col, data.get(col.key), raw) }}
+  </label>
+  {% endfor %}
+  <div class="form-actions"><button class="btn primary" type="submit">Create entry</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<form method="post" action="/settings/save" class="panel form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <h2>Reminders</h2>
+  <label class="field"><span>Daily send time (24h)</span><input type="time" name="send_time" value="{{ settings.send_time }}" required></label>
+  <label class="field"><span>Timezone</span>
+    <select name="timezone">{% for tz in timezones %}<option value="{{ tz }}" {% if tz == settings.timezone %}selected{% endif %}>{{ tz }}</option>{% endfor %}</select></label>
+  <p class="muted small">Server time now: {{ now_local.strftime('%d-%m-%Y %H:%M') }} ({{ settings.timezone }}). Last daily run: {{ fmt_date(settings.last_run_day) or 'never' }}.</p>
+  <label class="field"><span>Send one summary instead of individual reminders when more than this many are due</span><input type="number" name="summary_threshold" min="1" max="1000" value="{{ settings.summary_threshold }}" required></label>
+  <label class="field"><span>“Approaching” status: days before the notification window starts</span><input type="number" name="approaching_days" min="0" max="365" value="{{ settings.approaching_days }}" required></label>
+  <div class="form-actions"><button class="btn primary" type="submit">Save settings</button></div>
+</form>
+
+<section class="panel">
+  <h2>Notifications</h2>
+  <p>Channel: <strong>{{ notifier }}</strong>{% if notifier == 'ntfy' %} · topic <code>{{ cfg.ntfy_topic }}</code> · publishing to <code>{{ cfg.ntfy_url }}</code>{% else %} <span class="muted">(messages are only written to the container log)</span>{% endif %}</p>
+  <p>Last delivery:
+    {% if delivery %}
+      <span class="badge {{ 'st-ok' if delivery.ok else 'st-expired' }}">{{ 'OK' if delivery.ok else 'Failed' }}</span>
+      <span class="muted small" data-utc="{{ delivery.at }}">{{ delivery.at.replace('T',' ')[:16] }} UTC</span><br>
+      <span class="small">{{ delivery.detail }}</span>
+    {% else %}<span class="muted">nothing sent yet</span>{% endif %}
+  </p>
+  <form method="post" action="/settings/test" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <button class="btn primary" type="submit">Send test notification</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% macro badge(e) -%}
+<span class="badge st-{{ e.status }}">{{ e.status_label }}{% if e.status == 'snoozed' %} until {{ fmt_date(e.snoozed_until) }}{% endif %}</span>
+{%- endmacro %}
+
+{% macro quick_actions(e, back) -%}
+<div class="quick">
+  <button type="button" class="btn small" data-snooze="{{ e.id }}" data-title="{{ e.title }}">Snooze</button>
+  <button type="button" class="btn small primary" data-renew="{{ e.id }}" data-title="{{ e.title }}"
+          data-expiry="{{ e.expiry.isoformat() if e.expiry else '' }}">Renewed</button>
+</div>
+{%- endmacro %}
+
+{% macro card(e, back) -%}
+<article class="card st-{{ e.status }}">
+  <label class="card-select"><input type="checkbox" class="bulk-check" value="{{ e.id }}" aria-label="Select"></label>
+  <a class="card-main" href="/entries/{{ e.id }}?back={{ back|urlencode }}">
+    <h3>{{ e.title }}</h3>
+    {% if e.center %}<p class="muted">{{ e.center }}</p>{% endif %}
+    <p class="expiry"><strong>{{ fmt_date(e.expiry) or 'No expiry date' }}</strong>{% if e.expiry %} <span class="muted">· {{ e.remaining }}</span>{% endif %}</p>
+    {{ badge(e) }}
+  </a>
+  {{ quick_actions(e, back) }}
+</article>
+{%- endmacro %}
+
+{% macro snooze_dialog(presets, back) -%}
+<dialog id="snooze-dialog" class="dialog">
+  <form method="post" data-action-template="/entries/{id}/snooze">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="back" value="{{ back }}">
+    <h2>Remind me again in…</h2>
+    <p class="muted" data-dialog-title></p>
+    <div class="presets">
+      {% for n, unit, label in presets %}<button class="btn" name="preset" value="{{ n }}:{{ unit }}">{{ label }}</button>{% endfor %}
+    </div>
+    <div class="row">
+      <input type="number" name="n" min="1" max="3650" inputmode="numeric" placeholder="Custom" aria-label="Custom amount">
+      <select name="unit" aria-label="Unit"><option value="days">days</option><option value="weeks">weeks</option></select>
+      <button class="btn primary" type="submit">Snooze</button>
+    </div>
+    <div class="dialog-actions"><button type="button" class="btn ghost" data-close>Cancel</button></div>
+  </form>
+</dialog>
+{%- endmacro %}
+
+{% macro renew_dialog(back) -%}
+<dialog id="renew-dialog" class="dialog">
+  <form method="post" data-action-template="/entries/{id}/renew">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="back" value="{{ back }}">
+    <h2>Mark as renewed</h2>
+    <p class="muted" data-dialog-title></p>
+    <p class="muted small">Current expiry: <span data-old-expiry>–</span></p>
+    <div class="presets" data-renew-presets>
+      <button type="button" class="btn" data-years="1">+1 year</button>
+      <button type="button" class="btn" data-years="2">+2 years</button>
+      <button type="button" class="btn" data-years="3">+3 years</button>
+    </div>
+    <label>New expiry date <input name="expiry" required placeholder="{{ DATE_HINT }}" pattern="\d{1,2}[-./]\d{1,2}[-./]\d{4}|\d{4}-\d{2}-\d{2}" inputmode="numeric" autocomplete="off"></label>
+    <fieldset class="row">
+      <legend>New notification window (optional)</legend>
+      <input type="number" name="window_n" min="0" max="3650" inputmode="numeric" placeholder="keep">
+      <select name="window_unit"><option value="weeks">weeks</option><option value="days">days</option></select>
+    </fieldset>
+    <div class="dialog-actions">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button class="btn primary" type="submit">Save renewal</button>
+    </div>
+  </form>
+</dialog>
+{%- endmacro %}
+
+{% macro field_input(col, value, raw=false) -%}
+{% set name = 'c' ~ col.id %}
+{% if col.type == 'longtext' %}
+  <textarea name="{{ name }}" rows="4" maxlength="10000">{{ value or '' }}</textarea>
+{% elif col.type == 'number' %}
+  <input name="{{ name }}" value="{{ value if value is not none else '' }}" inputmode="decimal">
+{% elif col.type == 'date' %}
+  <input name="{{ name }}" value="{{ value if raw else fmt_date(value) }}" placeholder="{{ DATE_HINT }}" inputmode="numeric" autocomplete="off"
+         pattern="\d{1,2}[-./]\d{1,2}[-./]\d{4}|\d{4}-\d{2}-\d{2}" {% if col.role == 'expiry' %}required{% endif %}>
+{% elif col.type == 'select' %}
+  <input name="{{ name }}" value="{{ value or '' }}" list="opts-{{ col.id }}" autocomplete="off" maxlength="500" placeholder="Choose or type a new option">
+  <datalist id="opts-{{ col.id }}">{% for o in col.options %}<option value="{{ o }}">{% endfor %}</datalist>
+{% elif col.type == 'checkbox' %}
+  <input type="checkbox" name="{{ name }}" {% if value %}checked{% endif %}>
+{% elif col.type == 'duration' %}
+  <span class="row">
+    <input type="number" name="{{ name }}_n" min="0" max="3650" inputmode="numeric" value="{{ value.n if value else '' }}">
+    <select name="{{ name }}_unit">
+      <option value="days" {% if value and value.unit == 'days' %}selected{% endif %}>days</option>
+      <option value="weeks" {% if not value or value.unit == 'weeks' %}selected{% endif %}>weeks</option>
+    </select>
+  </span>
+{% else %}
+  <input name="{{ name }}" value="{{ value or '' }}" maxlength="500">
+{% endif %}
+{%- endmacro %}

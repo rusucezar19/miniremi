@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Notification setup{% endblock %}
+{% block content %}
+<h1>Get notifications on your phone</h1>
+{% if not server or not topic %}
+  <div class="flash flash-warn">ntfy is not configured on the server yet (NTFY_PUBLIC_URL and NTFY_TOPIC). Ask the admin.</div>
+{% else %}
+<div class="panel setup-grid">
+  <div>
+    <ol class="steps">
+      <li>Install the <strong>ntfy</strong> app (Google Play, F-Droid or the App Store).</li>
+      <li>In the app settings, add a user for <strong>{{ server }}</strong> with the ntfy username and password the admin gave you
+        (Android: Settings → Manage users; iPhone: Settings → Users).</li>
+      <li>Tap <strong>+</strong> to subscribe. Choose “Use another server”, enter the server URL and the topic below.
+        On Android you can also scan the QR code or tap the link.</li>
+      <li>Allow notifications for ntfy. Ask the admin to press “Send test notification” to check it works.</li>
+    </ol>
+    <dl class="kv">
+      <dt>Server URL</dt><dd><code data-copy>{{ server }}</code></dd>
+      <dt>Topic</dt><dd><code data-copy>{{ topic }}</code></dd>
+      <dt>Subscribe link</dt><dd><a href="{{ deep_link }}">{{ deep_link }}</a></dd>
+    </dl>
+  </div>
+  <div class="qr" aria-label="QR code with the subscribe link">{{ qr_svg|safe }}</div>
+</div>
+<p class="muted small">Notifications have “Snooze 1 day”, “Snooze 1 week” and “Open” buttons. To mark an entry as renewed, open it (a new expiry date is needed).</p>
+{% endif %}
+{% if notifier != 'ntfy' %}<p class="muted small">The server currently uses the <strong>{{ notifier }}</strong> channel.</p>{% endif %}
+{% endblock %}
