@@ -30,7 +30,7 @@
   </div>
   <div class="qr" aria-label="QR code with your subscribe link">{{ qr_svg|safe }}</div>
 </div>
-<p class="muted small">Notifications have “Snooze 1 day”, “Snooze 1 week” and “Open” buttons. To mark an entry as renewed, open it (a new expiry date is needed).</p>
+<p class="muted small">Notifications have two buttons: “Snooze 1 day” and “Open”. To snooze longer or mark an entry as renewed, tap Open and use the buttons in the app.</p>
 {% endif %}
 {% if notifier != 'ntfy' %}<p class="muted small">The server currently uses the <strong>{{ notifier }}</strong> channel (messages only go to the server log).</p>{% endif %}
 {% endblock %}

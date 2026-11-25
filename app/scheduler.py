@@ -198,12 +198,14 @@ class ReminderService:
         return f"{self.cfg.public_base_url}{path}"
 
     def _actions(self, entry_id: int) -> list[Action]:
+        """Two wide buttons so phones show the labels in full. Longer snoozes: Open → Snooze in the app.
+
+        The "snooze1w" action stays valid in tokens.py so notifications sent before this change keep working.
+        """
         key = self.cfg.secret_key
         return [
             Action("http", "Snooze 1 day", self._url(f"/api/entries/{entry_id}/action/snooze1d"),
                    body=tokens.make_token(key, entry_id, "snooze1d"), clear=True),
-            Action("http", "Snooze 1 week", self._url(f"/api/entries/{entry_id}/action/snooze1w"),
-                   body=tokens.make_token(key, entry_id, "snooze1w"), clear=True),
             Action("view", "Open", self._url(f"/entries/{entry_id}" if entry_id else "/")),
         ]
 
@@ -243,7 +245,7 @@ class ReminderService:
     def build_test(self, topic: str | None = None) -> Notification:
         return Notification(
             title="Certificate expiring: Test notification",
-            message="Center: Test\nThis is a test from Certificate Tracker. The Snooze buttons should answer 'Test OK'.",
+            message="Center: Test\nThis is a test from Certificate Tracker. The Snooze 1 day button should answer 'Test OK'.",
             priority=3,
             click=self._url("/"),
             actions=self._actions(0),

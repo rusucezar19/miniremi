@@ -225,7 +225,7 @@ def test_settings_save_and_test_button(app, client, notifier):
     assert (s["send_time"], s["timezone"], s["summary_threshold"]) == ("07:30", "Europe/London", "5")
     r = client.post("/settings/test", data={"csrf": token}, follow_redirects=True)
     assert "Test notification sent" in r.text
-    assert [a.label for a in notifier.sent[-1].actions] == ["Snooze 1 day", "Snooze 1 week", "Open"]
+    assert [a.label for a in notifier.sent[-1].actions] == ["Snooze 1 day", "Open"]
     r = client.post("/settings/save", data={"send_time": "25:00", "timezone": "Nowhere/City", "summary_threshold": "5",
                                             "approaching_days": "20", "csrf": token}, follow_redirects=True)
     assert "Not saved" in r.text

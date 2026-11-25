@@ -9,7 +9,7 @@ they see only their own entries and get reminders only for those.
 - Private per user: own entries, own notification topic
 - Views: **Cards**, **Grouped**, **Timeline**, **Table** (inline editing), with shared search and filters
 - Daily reminders from *expiry date − notification window*, repeated every day until the entry is **renewed** or **snoozed**
-- Notification buttons: **Snooze 1 day**, **Snooze 1 week**, **Open**
+- Notification buttons: **Snooze 1 day** and **Open** (longer snoozes from the app)
 - Audit log per entry, CSV export and bulk CSV import (with template), dark mode, installable on the phone home screen (PWA)
 - Memory at idle (measured): app ≈ 35 MB, ntfy ≈ 50 MB
 
@@ -266,7 +266,7 @@ Every user can open **Notification setup** in the app menu. It shows the server 
    signal (message id and a hash of the topic URL) passes through ntfy.sh. The message text never does.
    The phone then fetches the message from your server.
 
-Then press **Notification setup → Send me a test notification** in the app. Its "Snooze" buttons answer *Test OK*.
+Then press **Notification setup → Send me a test notification** in the app. Its "Snooze 1 day" button answers *Test OK*.
 
 ---
 
@@ -277,7 +277,7 @@ Then press **Notification setup → Send me a test notification** in the app. It
 | Dashboard counts per status | top of the entries page (tap a tile to filter) |
 | Views | tabs *Cards / Grouped / Timeline / Table*. Search, status and Center filters apply to all of them |
 | Inline editing | *Table* view: tap a cell, press Enter to save and Esc to cancel |
-| Snooze | **Snooze** on any entry (1 day, 3 days, 1 week, 2 weeks, or custom days/weeks); bulk: tick entries, then use the bar at the bottom; or the notification's buttons |
+| Snooze | **Snooze** on any entry (1 day, 3 days, 1 week, 2 weeks, or custom days/weeks); bulk: tick entries, then use the bar at the bottom; or the notification's **Snooze 1 day** button (for longer, tap **Open** and snooze in the app) |
 | Renew | **Renewed** / **Mark as renewed**: presets +1/+2/+3 years from the old expiry date, or type DD-MM-YYYY; optional new window. This clears the snooze and resets the reminders |
 | Audit log | entry detail page → *History* (edits with old → new values, renewals, snoozes, who and when) |
 | Columns (admin) | menu → *Columns*. "Expiry date" and "Notification window" can be renamed but not deleted or retyped |

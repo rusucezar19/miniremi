@@ -40,7 +40,7 @@ def test_daily_repeat_until_handled(db, service, notifier):
     assert "Center: North" in msg.message and "Expiry date: 23-09-2026" in msg.message and "7 days left" in msg.message
     assert msg.priority == 3
     assert msg.click == f"http://testserver/entries/{eid}"
-    assert [a.label for a in msg.actions] == ["Snooze 1 day", "Snooze 1 week", "Open"]
+    assert [a.label for a in msg.actions] == ["Snooze 1 day", "Open"]
 
 
 def test_not_due_before_trigger_and_overdue_is_high_priority(db, service, notifier):
@@ -192,8 +192,8 @@ def test_retry_after_ntfy_failure(db, cfg):
     assert body["topic"] == "certs-admin" and body["priority"] == 3  # the owner's personal topic
     assert body["click"] == f"http://testserver/entries/{eid}"
     http_actions = [a for a in body["actions"] if a["action"] == "http"]
-    assert [a["label"] for a in body["actions"]] == ["Snooze 1 day", "Snooze 1 week", "Open"]
-    assert all(a["method"] == "POST" and a["body"] and a["url"].endswith(("snooze1d", "snooze1w")) for a in http_actions)
+    assert [a["label"] for a in body["actions"]] == ["Snooze 1 day", "Open"]
+    assert all(a["method"] == "POST" and a["body"] and a["url"].endswith("snooze1d") for a in http_actions)
     assert all(a["body"] not in a["url"] for a in http_actions)  # token never in the URL
     with db.tx() as c:
         status = json.loads(repo.get_settings(c)["last_delivery"])
