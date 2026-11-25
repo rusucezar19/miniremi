@@ -133,7 +133,7 @@ legend { font-size: .9rem; color: var(--muted); margin-bottom: .3rem; }
 .card-main p { margin: .15rem 0; }
 .card .expiry { margin: .35rem 0 .45rem; }
 .card-select { position: absolute; top: .7rem; right: .7rem; }
-.quick { display: flex; gap: .4rem; padding: 0 .9rem .8rem; }
+.quick { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0 .9rem .8rem; }
 td .quick { padding: 0; display: inline-flex; }
 
 /* grouped */

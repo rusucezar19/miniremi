@@ -462,10 +462,11 @@ def update_entry(c, entry_id: int, new_data: dict, actor, action: str = "edited"
     return changes
 
 
-def delete_entry(c, entry_id: int, actor) -> None:
+def delete_entry(c, entry_id: int, actor, action: str = "deleted") -> None:
+    """Remove an entry and its reminder state. `action` is what the audit log records ("deleted" / "marked as done")."""
     c.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
     c.execute("DELETE FROM notifications_sent WHERE entry_id = ?", (entry_id,))
-    add_audit(c, entry_id, actor, "deleted", {})
+    add_audit(c, entry_id, actor, action, {})
 
 
 def duplicate_entry(c, entry_id: int, actor) -> int:

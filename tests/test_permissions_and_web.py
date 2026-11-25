@@ -263,3 +263,27 @@ def test_pages_render(client):
     for path in ("/", "/entries/new", "/columns", "/users", "/settings", "/notifications", "/account",
                  "/manifest.webmanifest", "/sw.js", "/healthz", "/static/app.css", "/static/icons/icon-192.png"):
         assert client.get(path).status_code == 200, path
+
+
+def test_mark_as_done_asks_then_removes(app, client):
+    login(client)
+    token = page_csrf(client)
+    eid = add_entry(app.state.db, app.state.service.today() + timedelta(days=3), title="Done cert")
+    for view in ("cards", "grouped", "table"):
+        assert f"/entries/{eid}/delete?done=1&amp;back=" in client.get(f"/?view={view}").text, view
+    assert f"/entries/{eid}/delete?done=1" in client.get(f"/entries/{eid}").text
+    # step 1: confirmation page, nothing removed yet
+    r = client.get(f"/entries/{eid}/delete?done=1&back=/%3Fview%3Dtable")
+    assert "Mark “Done cert - Sub” as done?" in r.text and "cannot be undone" in r.text
+    assert client.get(f"/entries/{eid}").status_code == 200
+    # step 2: confirm -> removed, logged as done, back to the list you came from
+    r = client.post(f"/entries/{eid}/delete", data={"done": "1", "back": "/?view=table", "csrf": token}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/?view=table"
+    assert client.get(f"/entries/{eid}").status_code == 404
+    with app.state.db.tx() as c:
+        actions = [a["action"] for a in repo.get_audit(c, eid)]
+    assert actions[0] == "marked as done"
+    # from the entry page itself you land on the list, not on the removed entry
+    eid2 = add_entry(app.state.db, app.state.service.today(), title="Second")
+    r = client.post(f"/entries/{eid2}/delete", data={"done": "1", "back": f"/entries/{eid2}", "csrf": token}, follow_redirects=False)
+    assert r.headers["location"] == "/"

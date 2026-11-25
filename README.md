@@ -279,6 +279,7 @@ Then press **Notification setup → Send me a test notification** in the app. It
 | Inline editing | *Table* view: tap a cell, press Enter to save and Esc to cancel |
 | Snooze | **Snooze** on any entry (1 day, 3 days, 1 week, 2 weeks, or custom days/weeks); bulk: tick entries, then use the bar at the bottom; or the notification's **Snooze 1 day** button (for longer, tap **Open** and snooze in the app) |
 | Renew | **Renewed** / **Mark as renewed**: presets +1/+2/+3 years from the old expiry date, or type DD-MM-YYYY; optional new window. This clears the snooze and resets the reminders |
+| Mark as done | **Mark as done** on any entry (cards, grouped, table, entry page): asks for confirmation, then removes the entry and its reminders. Logged as "marked as done"; cannot be undone |
 | Audit log | entry detail page → *History* (edits with old → new values, renewals, snoozes, who and when) |
 | Columns (admin) | menu → *Columns*. "Expiry date" and "Notification window" can be renamed but not deleted or retyped |
 | Users (admin) | menu → *Users*: create, disable or enable, reset the password (the user must change it), grant or revoke admin. Also shows each user's entry count, ntfy topic and ntfy setup commands |

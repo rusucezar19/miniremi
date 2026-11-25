@@ -1,7 +1,7 @@
 /* Minimal service worker: makes the app installable and caches static assets.
    Pages are always fetched from the network (data must be fresh and per-user). */
-const CACHE = "certtracker-static-v2";
-const ASSETS = ["/static/app.css?v=2", "/static/app.js?v=2", "/static/icons/icon.svg", "/static/icons/icon-192.png"];
+const CACHE = "certtracker-static-v3";
+const ASSETS = ["/static/app.css?v=3", "/static/app.js?v=3", "/static/icons/icon.svg", "/static/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

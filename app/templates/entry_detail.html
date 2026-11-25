@@ -15,6 +15,7 @@
     <form method="post" action="/entries/{{ entry.id }}/unsnooze" class="inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="back" value="/entries/{{ entry.id }}"><button class="btn" type="submit">Clear snooze</button></form>
     {% endif %}
     <button type="button" class="btn primary" data-renew="{{ entry.id }}" data-title="{{ entry.title }}" data-expiry="{{ entry.expiry.isoformat() if entry.expiry else '' }}">Mark as renewed</button>
+    <a class="btn" href="/entries/{{ entry.id }}/delete?done=1&amp;back={{ back|urlencode }}">Mark as done</a>
   </div>
 </div>
 

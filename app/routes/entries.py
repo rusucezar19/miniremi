@@ -285,11 +285,25 @@ async def delete_entry(request: Request):
         if entry is None:
             return error_page(request, 404, "Entry not found.")
         if request.method == "GET":
+            # ?done=1 comes from the "Mark as done" buttons: same removal, friendlier wording, logged as done.
+            done = request.query_params.get("done") == "1"
+            back = safe_next(request.query_params.get("back"), "/")
+            if done:
+                return render(request, "confirm.html", title="Mark as done",
+                              message=f"Mark “{entry.title}” as done? The entry and its reminders will be removed. "
+                                      "This cannot be undone.",
+                              action=f"/entries/{entry_id}/delete", button="Mark as done", cancel=back,
+                              hidden={"done": "1", "back": back})
             return render(request, "confirm.html", title="Delete entry",
                           message=f"Delete “{entry.title}”? This cannot be undone.",
                           action=f"/entries/{entry_id}/delete", button="Delete entry", cancel=f"/entries/{entry_id}")
-        repo.delete_entry(c, entry_id, request.state.user)
-    return redirect(request, "/", "Entry deleted.")
+        form = await request.form()
+        done = form.get("done") == "1"
+        back = safe_next(form.get("back"), "/")
+        if back.startswith(f"/entries/{entry_id}"):
+            back = "/"  # the entry page no longer exists
+        repo.delete_entry(c, entry_id, request.state.user, action="marked as done" if done else "deleted")
+    return redirect(request, back, f"“{entry.title}” marked as done and removed." if done else "Entry deleted.")
 
 
 @page("edit_entries")

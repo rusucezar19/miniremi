@@ -7,6 +7,7 @@
   <button type="button" class="btn small" data-snooze="{{ e.id }}" data-title="{{ e.title }}">Snooze</button>
   <button type="button" class="btn small primary" data-renew="{{ e.id }}" data-title="{{ e.title }}"
           data-expiry="{{ e.expiry.isoformat() if e.expiry else '' }}">Renewed</button>
+  <a class="btn small" href="/entries/{{ e.id }}/delete?done=1&amp;back={{ back|urlencode }}">Mark as done</a>
 </div>
 {%- endmacro %}
 
