@@ -6,7 +6,7 @@
 # Public address phones use (the Tailscale Funnel URL on port 10000).
 # docker-compose.yml sets it from NTFY_PUBLIC_URL in .env through NTFY_BASE_URL,
 # which takes precedence over this file. Keep both in sync if you set it here.
-# base-url: "https://paranas.tailXXXX.ts.net:10000"
+# base-url: "https://your-nas.your-tailnet.ts.net:10000"
 
 # Plain HTTP inside the container (non-root, so not port 80). Tailscale terminates HTTPS.
 listen-http: ":2586"

@@ -223,7 +223,7 @@ Tailscale runs in a container (`tailscale_tailscale-1`, bridge network), so the 
 **LAN IP** and the **host ports**. These are the same kind of target your existing Jellyfin `serve` rule already uses.
 
 ```sh
-NAS_IP=192.168.50.133   # your NAS LAN IP. Reserve it in the router's DHCP settings so it never changes.
+NAS_IP=192.168.1.50   # replace with your NAS LAN IP (see UGOS → Network). Reserve it in the router's DHCP settings so it never changes.
 
 sudo docker exec tailscale_tailscale-1 tailscale funnel --bg --https=8443  http://$NAS_IP:8085
 sudo docker exec tailscale_tailscale-1 tailscale funnel --bg --https=10000 http://$NAS_IP:8095
