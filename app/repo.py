@@ -228,15 +228,18 @@ def coerce_value(col: Column, raw):
     if raw is None:
         return None
     if col.type == "duration":
-        if isinstance(raw, dict):
-            return parse_duration(raw.get("n"), raw.get("unit"))
-        if isinstance(raw, (tuple, list)):
-            if str(raw[0]).strip() == "":
+        try:
+            if isinstance(raw, dict):
+                return parse_duration(raw.get("n"), raw.get("unit"))
+            if isinstance(raw, (tuple, list)):
+                if str(raw[0]).strip() == "":
+                    return None
+                return parse_duration(raw[0], raw[1])
+            if str(raw).strip() == "":
                 return None
-            return parse_duration(raw[0], raw[1])
-        if str(raw).strip() == "":
-            return None
-        return parse_duration_text(str(raw))
+            return parse_duration_text(str(raw))
+        except ValueError as exc:
+            raise ValueError(f"{col.name}: {exc}") from exc
     text = str(raw).strip()
     if text == "":
         return None
@@ -298,6 +301,7 @@ class Entry:
     columns: list[Column]
     today: date
     approaching_days: int = 30
+    owner_id: int | None = None
 
     def value(self, col: Column):
         return self.data.get(col.key)
@@ -375,17 +379,25 @@ def _entry(row, columns, today, approaching_days) -> Entry:
         columns=columns,
         today=today,
         approaching_days=approaching_days,
+        owner_id=row["owner_id"],
     )
 
 
-def list_entries(c, today: date, approaching_days: int = 30, columns=None) -> list[Entry]:
+def list_entries(c, today: date, approaching_days: int = 30, columns=None, owner_id: int | None = None) -> list[Entry]:
+    """All entries, or only those of `owner_id` when given."""
     columns = columns if columns is not None else get_columns(c)
-    rows = c.execute("SELECT * FROM entries").fetchall()
+    if owner_id is None:
+        rows = c.execute("SELECT * FROM entries").fetchall()
+    else:
+        rows = c.execute("SELECT * FROM entries WHERE owner_id = ?", (owner_id,)).fetchall()
     return sorted((_entry(r, columns, today, approaching_days) for r in rows), key=lambda e: e.sort_key)
 
 
-def get_entry(c, entry_id: int, today: date, approaching_days: int = 30) -> Entry | None:
+def get_entry(c, entry_id: int, today: date, approaching_days: int = 30, owner_id: int | None = None) -> Entry | None:
+    """The entry, or None if it does not exist or (when `owner_id` is given) belongs to someone else."""
     row = c.execute("SELECT * FROM entries WHERE id = ?", (entry_id,)).fetchone()
+    if row is not None and owner_id is not None and row["owner_id"] != owner_id:
+        return None
     return _entry(row, get_columns(c), today, approaching_days) if row else None
 
 
@@ -411,10 +423,21 @@ def build_data(c, columns: list[Column], form_values: dict, base: dict | None = 
     return data
 
 
-def create_entry(c, data: dict, actor) -> int:
+def entry_owned(c, entry_id: int, owner_id: int | None) -> bool:
+    """True if the entry exists and belongs to owner_id (owner_id None = any owner)."""
+    row = c.execute("SELECT owner_id FROM entries WHERE id = ?", (entry_id,)).fetchone()
+    return row is not None and (owner_id is None or row["owner_id"] == owner_id)
+
+
+def create_entry(c, data: dict, actor, owner_id: int | None = None, details: dict | None = None) -> int:
+    """Create an entry owned by `owner_id`, defaulting to the acting user."""
     now = utcnow_iso()
-    cur = c.execute("INSERT INTO entries(data, created_at, updated_at) VALUES (?,?,?)", (json.dumps(data), now, now))
-    add_audit(c, cur.lastrowid, actor, "created", {})
+    owner_id = owner_id if owner_id is not None else actor_of(actor)[0]
+    cur = c.execute(
+        "INSERT INTO entries(data, created_at, updated_at, owner_id) VALUES (?,?,?,?)",
+        (json.dumps(data), now, now, owner_id),
+    )
+    add_audit(c, cur.lastrowid, actor, "created", details or {})
     return cur.lastrowid
 
 
@@ -449,7 +472,7 @@ def duplicate_entry(c, entry_id: int, actor) -> int:
     row = c.execute("SELECT data FROM entries WHERE id = ?", (entry_id,)).fetchone()
     if row is None:
         raise LookupError("Entry not found")
-    new_id = create_entry(c, json.loads(row["data"]), actor)
+    new_id = create_entry(c, json.loads(row["data"]), actor)  # the copy belongs to whoever duplicates it
     add_audit(c, new_id, actor, "duplicated", {"from_entry": entry_id})
     return new_id
 

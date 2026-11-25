@@ -2,13 +2,15 @@
 
 Self-hosted web app that tracks certificate expiry dates and sends phone notifications
 (via a self-hosted [ntfy](https://ntfy.sh) server) before they expire.
-Runs as two small Docker containers on a home NAS, shared by several users.
+Runs as two small Docker containers on a home NAS, used by several people. Each user has a private list:
+they see only their own entries and get reminders only for those.
 
 - Fully customisable table (add, rename, reorder, retype and delete columns)
+- Private per user: own entries, own notification topic
 - Views: **Cards**, **Grouped**, **Timeline**, **Table** (inline editing), with shared search and filters
 - Daily reminders from *expiry date − notification window*, repeated every day until the entry is **renewed** or **snoozed**
 - Notification buttons: **Snooze 1 day**, **Snooze 1 week**, **Open**
-- Audit log per entry, CSV export, dark mode, installable on the phone home screen (PWA)
+- Audit log per entry, CSV export and bulk CSV import (with template), dark mode, installable on the phone home screen (PWA)
 - Memory at idle (measured): app ≈ 35 MB, ntfy ≈ 50 MB
 
 ---
@@ -116,7 +118,7 @@ Set at least the following:
 | `SECRET_KEY` | output of `openssl rand -base64 48` |
 | `PUBLIC_BASE_URL` | `https://<nas>.<tailnet>.ts.net:8443` |
 | `NTFY_PUBLIC_URL` | `https://<nas>.<tailnet>.ts.net:10000` |
-| `NTFY_TOPIC` | something hard to guess, e.g. `certs-` + `openssl rand -hex 4` |
+| `NTFY_TOPIC` | topic **prefix**, hard to guess, e.g. `certs-` + `openssl rand -hex 4`. Each user's topic is `<prefix>-<username>` |
 | `PUID` / `PGID` | the ids from step 3.2 |
 | `APP_HOST_PORT` / `NTFY_HOST_PORT` | `8085` / `8095` (both free on this NAS; qBittorrent uses 8090) |
 
@@ -163,29 +165,35 @@ Use the Funnel URL, or temporarily set `COOKIE_SECURE=false`.
 ntfy runs with `auth-default-access: deny-all`, so every user must be created explicitly.
 The CLI inside the container reads `/etc/ntfy/server.yml` and finds the user database by itself.
 
+**Two separate logins.** A user created in the app's **Users** tab only gets a *website* login.
+For phone notifications the same person also needs an *ntfy* login.
+Every person gets a **personal topic**, `<NTFY_TOPIC>-<username>`, for example `certs-49fd2c76-merlaru`.
+Reminders for their entries go only there, and their ntfy login can read only that topic.
+The **Users** page in the app shows each person's topic and the exact two commands to paste.
+
 ```sh
 cd /volume1/docker/certtracker
-TOPIC=$(sudo grep ^NTFY_TOPIC .env | cut -d= -f2)
+PREFIX=$(sudo grep ^NTFY_TOPIC .env | cut -d= -f2)
 
-# 1) Publisher account used by the app: write-only on the topic, random password (never needed again)
+# 1) Publisher account used by the app: write-only on all personal topics (the * is a wildcard)
 sudo docker exec -e NTFY_PASSWORD="$(openssl rand -hex 24)" certtracker-ntfy ntfy user add publisher
-sudo docker exec certtracker-ntfy ntfy access publisher "$TOPIC" write-only
+sudo docker exec certtracker-ntfy ntfy access publisher "$PREFIX-*" write-only
 sudo docker exec certtracker-ntfy ntfy token add --label=certtracker publisher
 #    -> prints "token tk_... created". Put it in .env as NTFY_TOKEN=tk_..., then:
 sudo docker compose up -d app
 
-# 2) One account per person (or one shared account) for the phones: read-only on the topic
-sudo docker exec -it certtracker-ntfy ntfy user add alice      # prompts for a password
-sudo docker exec certtracker-ntfy ntfy access alice "$TOPIC" read-only
+# 2) One ntfy account per person, read-only on their own topic (copy these lines from the Users page)
+sudo docker exec -it certtracker-ntfy ntfy user add merlaru            # prompts for a password
+sudo docker exec certtracker-ntfy ntfy access merlaru "$PREFIX-merlaru" read-only
 ```
 
 Useful commands: `ntfy user list`, `ntfy user change-pass alice`, `ntfy user del alice`, `ntfy token list`,
 `ntfy token remove publisher tk_…`. Prefix each with `sudo docker exec -it certtracker-ntfy`.
 
-The token carries the publisher account's rights, which are write-only on one topic.
+The token carries the publisher account's rights, which are write-only on the personal topics.
 The app sends it only to `NTFY_URL` over the internal Docker network.
 
-Check it: in the app go to **Settings → Send test notification**. The page shows either "sent" or the exact
+Check it: in the app go to **Notification setup → Send me a test notification** (every user can do this). The page shows either "sent" or the exact
 error from ntfy, for example `HTTP 403` for a missing access rule or `HTTP 401` for a wrong token.
 
 ---
@@ -240,7 +248,7 @@ switch the Tailscale container to `network_mode: host` in its compose file. Then
 
 ## 6. Subscribe on Android and iPhone
 
-Every user can open **Notification setup** in the app menu. It shows the server URL, the topic, an
+Every user can open **Notification setup** in the app menu. It shows the server URL, **their personal topic**, an
 `ntfy://` subscribe link and a QR code.
 
 **Android** (ntfy app from Google Play or F-Droid)
@@ -258,7 +266,7 @@ Every user can open **Notification setup** in the app menu. It shows the server 
    signal (message id and a hash of the topic URL) passes through ntfy.sh. The message text never does.
    The phone then fetches the message from your server.
 
-Then ask an admin to press **Settings → Send test notification**. Its "Snooze" buttons answer *Test OK*.
+Then press **Notification setup → Send me a test notification** in the app. Its "Snooze" buttons answer *Test OK*.
 
 ---
 
@@ -273,9 +281,10 @@ Then ask an admin to press **Settings → Send test notification**. Its "Snooze"
 | Renew | **Renewed** / **Mark as renewed**: presets +1/+2/+3 years from the old expiry date, or type DD-MM-YYYY; optional new window. This clears the snooze and resets the reminders |
 | Audit log | entry detail page → *History* (edits with old → new values, renewals, snoozes, who and when) |
 | Columns (admin) | menu → *Columns*. "Expiry date" and "Notification window" can be renamed but not deleted or retyped |
-| Users (admin) | menu → *Users*: create, disable or enable, reset the password (the user must change it), grant or revoke admin |
+| Users (admin) | menu → *Users*: create, disable or enable, reset the password (the user must change it), grant or revoke admin. Also shows each user's entry count, ntfy topic and ntfy setup commands |
 | Settings (admin) | send time, timezone, summary threshold, "approaching" range, last delivery status, test button |
 | Export | **Export CSV** (UTF-8, dates DD-MM-YYYY, current columns) |
+| Import | **Import CSV** → download the template (comma, or semicolon for Excel with European settings), one entry per row, upload. All rows are checked first: if any row has a problem nothing is imported and you get a list of row numbers to fix. Imported entries belong to the importer; empty notification window = 1 week. An exported file can be imported back |
 | Install on phone | browser menu → *Add to Home Screen* |
 
 **Statuses:** *OK*, *Approaching* (up to N days, default 30, before the window starts), *In notification window*
@@ -289,6 +298,10 @@ Then ask an admin to press **Settings → Send test notification**. Its "Snooze"
 - If the NAS was off at the send time, the missed run happens at startup. An entry never gets more than one notification per day.
 - If ntfy is unreachable, each message is retried 3 times (2 s, 10 s, 30 s). After that the whole run is retried
   with backoff (5, 10, 20 … 60 minutes) until it succeeds. The result is shown in Settings.
+
+**Privacy:** everyone, admins included, sees and edits only their own entries; another user's entry answers "not found".
+To let admins see and edit all entries, set `"view_all_entries": ADMIN` in [app/permissions.py](app/permissions.py).
+Reminders always go only to the entry's owner. Column structure and select options are shared by everyone.
 
 Permissions are defined in one place: [app/permissions.py](app/permissions.py).
 
@@ -346,7 +359,7 @@ All variables are documented in [.env.example](.env.example).
 | `NTFY_URL` | – | internal ntfy address (`http://ntfy:2586`) |
 | `NTFY_PUBLIC_URL` | – | public ntfy address (Funnel :10000); also ntfy's `base-url` |
 | `NTFY_HOST_PORT` | `8095` | NAS port mapped to ntfy |
-| `NTFY_TOPIC` | – | shared topic |
+| `NTFY_TOPIC` | – | prefix of the personal topics (`<prefix>-<username>`) |
 | `NTFY_TOKEN` | – | publisher access token (`tk_…`) |
 
 Daily send time, timezone, summary threshold and the "approaching" range are changed in **Settings**, not in `.env`.
@@ -364,7 +377,8 @@ ntfy 2.38 documentation and `ntfy serve --help`.
 |---|---|
 | `PermissionError` or `unable to open database file` in the logs | `data/` or `ntfy/data/` is not owned by `PUID:PGID`; run `sudo chown -R <uid>:<gid> data ntfy/data` |
 | Login page reloads without logging in | you are on plain HTTP but cookies are `Secure`; use the https Funnel URL, or set `COOKIE_SECURE=false` for LAN use |
-| Test notification: `ntfy returned HTTP 401/403` | wrong `NTFY_TOKEN`, or the publisher lacks `write-only` on `NTFY_TOPIC` |
+| Test notification: `ntfy returned HTTP 401/403` | wrong `NTFY_TOKEN`, or the publisher lacks `write-only` on `<NTFY_TOPIC>-*` |
+| Phone: "websocket … 403" or `401` | the person has no ntfy login (website logins are separate), or no `read-only` access to their own topic; see the Users page |
 | Test notification: `Could not reach ntfy` | the ntfy container is down, or `NTFY_URL` is not `http://ntfy:2586` |
 | Phone shows nothing | wrong server URL in the app (must include `:10000`), user lacks `read-only` access, or Funnel is off |
 | iPhone notifications arrive late | check `upstream-base-url` and that `NTFY_PUBLIC_URL` exactly matches the URL you subscribed with |
@@ -409,10 +423,17 @@ Choices made where the spec left room:
 18. **CSRF:** a per-session token on every form and AJAX call, plus an Origin check.
 19. **CSV export** starts with a UTF-8 BOM so Excel shows diacritics correctly. Cells starting with `= + - @` are prefixed with `'`
     to prevent formula injection.
+    **CSV import** reads UTF-8 or Excel's Windows-1250 "CSV", comma/semicolon/tab separated (detected from the first row),
+    matches columns by name (case-insensitive; unknown columns are ignored with a warning), max 2 MB / 2000 rows.
 20. **Audit log times** are stored in UTC and shown in the viewer's local time.
 21. **ntfy runs as non-root** on internal port 2586 (instead of 80). Attachments are disabled. `cache-duration` is 72 h.
 22. **Memory limits** of 256 MB per container are set in compose as a safety net. Measured idle use is far lower.
-23. **Images:** `python:3.12-slim` (multi-arch) and `binwiederhier/ntfy:v2.38.2` (pinned). Build arm64 if needed with
+23. **Per-user privacy:** every entry has an owner (its creator). When upgrading, existing entries get the user who
+    created them according to the history log, or the first admin if that is unknown. A duplicate belongs to whoever made it.
+    Entries of a disabled user are kept but get no reminders.
+24. **Personal topics** are derived from the username (lower-case; other characters than letters, digits, `-` and `_` are
+    replaced, with a short hash added so two users never share a topic). ntfy access rules keep topics private.
+25. **Images:** `python:3.12-slim` (multi-arch) and `binwiederhier/ntfy:v2.38.2` (pinned). Build arm64 if needed with
     `docker buildx build --platform linux/amd64,linux/arm64 .`
 
 ---
@@ -431,7 +452,8 @@ app/
   security.py        argon2 passwords, sessions, login lockout, IP limiter
   repo.py            columns, entries, audit log, users, settings
   notifiers/         Notifier interface + ntfy and console implementations
-  routes/            auth, entries/views/export, admin (columns/users/settings), notification actions
+  csv_import.py      CSV template and import parsing
+  routes/            auth, entries/views/export/import, admin (columns/users/settings), notification actions
   templates/ static/ server-rendered pages, CSS, JS, PWA manifest, service worker, icons
 tests/               pytest suite
 ntfy/server.yml      ntfy configuration
@@ -446,4 +468,4 @@ tools/make_icons.py  regenerate PNG icons
 renewal reset, catch-up after downtime, no duplicate sends in one day, the summary above the threshold, action tokens
 (expiry, wrong entry or action, tampering, replay, POST only, never logged), retry after a mocked ntfy failure and backoff,
 timezone handling, login lockout and IP limiting, setup code, CSRF, the permission rules, column management, entry CRUD and
-audit, inline editing, XSS escaping, and CSV export.
+audit, inline editing, XSS escaping, CSV export and import, per-user privacy and personal notification topics.

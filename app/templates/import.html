@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Import CSV{% endblock %}
+{% block content %}
+<p><a href="/" class="muted">← Back</a></p>
+<h1>Import entries from CSV</h1>
+
+{% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+{% if row_errors %}
+<div class="panel">
+  <h2>Rows to fix</h2>
+  <p class="muted small">Row numbers count the column names as row 1, like in Excel.</p>
+  <ul class="small">{% for e in row_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if warnings %}<div class="flash flash-warn">{% for w in warnings %}{{ w }} {% endfor %}</div>{% endif %}
+
+<section class="panel">
+  <h2>1. Download the template</h2>
+  <p>The first row contains the column names of the table. Keep it unchanged and add one entry per row below it.</p>
+  <p class="row">
+    <a class="btn" href="/import/template.csv">Template (comma separated)</a>
+    <a class="btn" href="/import/template.csv?sep=semicolon">Template for Excel with European settings (semicolon)</a>
+  </p>
+  <p class="muted small">Not sure which one? Open the first one in Excel. If all column names end up in one cell, use the second one.
+    A file exported with “Export CSV” can also be imported as it is.</p>
+</section>
+
+<section class="panel">
+  <h2>2. Fill it in</h2>
+  <div class="tablewrap">
+  <table class="grid">
+    <thead><tr><th>Column</th><th>What to enter</th><th>Example</th></tr></thead>
+    <tbody>
+    {% for h in help_rows %}
+      <tr><td><strong>{{ h.col.name }}</strong></td><td>{{ h.format }}</td><td>{{ h.example }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">Empty cells are allowed. Save the file as CSV (best: “CSV UTF-8”). Up to {{ max_rows }} rows per import.</p>
+</section>
+
+<form method="post" action="/import" enctype="multipart/form-data" class="panel form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <h2>3. Upload</h2>
+  <label class="field"><span>CSV file</span><input type="file" name="file" accept=".csv,text/csv" required></label>
+  <p class="muted small">All rows are checked first. If any row has a problem, nothing is imported and you get a list of what to fix.
+    Imported entries are added to <strong>your</strong> list.</p>
+  <div class="form-actions"><button class="btn primary" type="submit">Import</button></div>
+</form>
+{% endblock %}

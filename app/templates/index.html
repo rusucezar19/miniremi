@@ -47,6 +47,7 @@
   <div class="toolbar-right">
     <span class="muted small">{{ entries|length }} of {{ total }}</span>
     <a class="btn small" href="/export.csv">Export CSV</a>
+    <a class="btn small" href="/import">Import CSV</a>
     <a class="btn small primary" href="/entries/new">+ New</a>
   </div>
 </div>
@@ -64,7 +65,7 @@
 
 {% if not entries %}
   <div class="empty">
-    {% if total == 0 %}<p>No entries yet.</p><a class="btn primary" href="/entries/new">Add the first certificate</a>
+    {% if total == 0 %}<p>No entries yet.</p><a class="btn primary" href="/entries/new">Add the first certificate</a> <a class="btn" href="/import">Import from CSV</a>
     {% else %}<p>No entries match these filters.</p>{% endif %}
   </div>
 {% elif f.view == 'cards' %}

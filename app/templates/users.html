@@ -4,11 +4,13 @@
 <h1>Users</h1>
 <div class="tablewrap">
 <table class="grid">
-  <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+  <thead><tr><th>User</th><th>Entries</th><th>ntfy topic</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
   <tbody>
   {% for u in users %}
   <tr>
     <td>{{ u.username }}{% if u.id == user.id %} <span class="muted small">(you)</span>{% endif %}</td>
+    <td>{{ counts.get(u.id, 0) }}</td>
+    <td><code>{{ topics[u.id] }}</code></td>
     <td>{{ 'Admin' if u.is_admin else 'User' }}</td>
     <td>{% if u.disabled %}<span class="badge st-nodate">Disabled</span>{% elif u.locked_until %}<span class="badge st-due">Lockout until {{ u.locked_until[:16].replace('T',' ') }} UTC</span>{% else %}<span class="badge st-ok">Active</span>{% endif %}
         {% if u.must_change_password %}<span class="muted small">must change password</span>{% endif %}</td>
@@ -38,4 +40,20 @@
   <label class="field field-check"><span>Admin (can change columns, users and settings)</span><input type="checkbox" name="is_admin"></label>
   <div class="form-actions"><button class="btn primary" type="submit">Create user</button></div>
 </form>
+
+<section class="panel">
+  <h2>Phone notifications (ntfy logins)</h2>
+  <p class="small">Each user only receives reminders for their own entries, on their personal topic. A user created above
+    only has a <strong>website</strong> login. For phone notifications they also need an <strong>ntfy</strong> login.
+    Create it over SSH in the project folder on the NAS (the first command asks for a password twice):</p>
+  {% for u in users %}{% if not u.disabled %}
+  <p class="small"><strong>{{ u.username }}</strong></p>
+  <pre class="cmd">sudo docker exec -it certtracker-ntfy ntfy user add {{ u.username }}
+sudo docker exec certtracker-ntfy ntfy access {{ u.username }} {{ topics[u.id] }} read-only</pre>
+  {% endif %}{% endfor %}
+  <p class="small">Once only, the app's publisher account must be allowed to post to every personal topic:</p>
+  <pre class="cmd">sudo docker exec certtracker-ntfy ntfy access publisher '{{ base_topic }}-*' write-only</pre>
+  <p class="muted small">If an ntfy user already exists, skip the "user add" line. Forgotten password:
+    <code>sudo docker exec -it certtracker-ntfy ntfy user change-pass NAME</code></p>
+</section>
 {% endblock %}

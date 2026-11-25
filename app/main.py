@@ -118,6 +118,8 @@ def routes() -> list:
         R("/entries/{entry_id:int}/unsnooze", entries.unsnooze, methods=["POST"]),
         R("/entries/{entry_id:int}/renew", entries.renew, methods=["POST"]),
         R("/export.csv", entries.export_csv),
+        R("/import", entries.import_entries, methods=["GET", "POST"]),
+        R("/import/template.csv", entries.import_template),
         R("/columns", admin.columns_page),
         R("/columns/add", admin.column_add, methods=["POST"]),
         R("/columns/{column_id:int}", admin.column_update, methods=["POST"]),
@@ -130,6 +132,7 @@ def routes() -> list:
         R("/settings/save", admin.settings_save, methods=["POST"]),
         R("/settings/test", admin.settings_test, methods=["POST"]),
         R("/notifications", admin.notify_setup),
+        R("/notifications/test", admin.notify_test, methods=["POST"]),
         R("/api/entries/{entry_id:int}/action/{action}", actions.notification_action, methods=["POST"]),
         Mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static"),
     ]

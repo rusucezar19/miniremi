@@ -1,8 +1,10 @@
 """Runtime configuration, read once from environment variables."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
+import re
 import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,6 +55,19 @@ class Config:
     @property
     def db_path(self) -> Path:
         return self.data_dir / "certtracker.db"
+
+    def topic_for(self, username: str) -> str:
+        """Personal ntfy topic of a user: <NTFY_TOPIC>-<username>.
+
+        ntfy topics allow only letters, digits, '-' and '_'. Usernames with other characters
+        get a short hash suffix so two users can never end up on the same topic.
+        """
+        name = (username or "").strip().lower()
+        slug = re.sub(r"[^a-z0-9_-]", "_", name)
+        if slug != name:
+            slug += "-" + hashlib.sha256(name.encode()).hexdigest()[:6]
+        base = self.ntfy_topic or "certs"
+        return f"{base}-{slug}"[:64]
 
     @classmethod
     def from_env(cls, env: dict | None = None) -> "Config":

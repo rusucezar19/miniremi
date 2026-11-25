@@ -95,45 +95,57 @@ class ReminderService:
                 approaching = int(settings.get("approaching_days", 30))
                 threshold = int(settings.get("summary_threshold", 10))
                 entries = repo.list_entries(c, today, approaching)
+                users = {r["id"]: r for r in c.execute("SELECT id, username, disabled FROM users")}
                 sent_today = {
                     r["entry_id"] for r in c.execute("SELECT entry_id FROM notifications_sent WHERE day = ?", (today.isoformat(),))
                 }
             due = [e for e in entries if reminders.is_due(e.state, today)]
             pending = [e for e in due if e.id not in sent_today]
-            result = {"day": today.isoformat(), "due": len(due), "pending": len(pending), "sent": 0, "failed": 0, "summary": False}
+            result = {"day": today.isoformat(), "due": len(due), "pending": len(pending), "sent": 0, "failed": 0,
+                      "summary": False, "skipped": 0}
             if not pending:
                 return result
-            if len(pending) > threshold:
-                result["summary"] = True
-                self._claim(today, [e.id for e in pending], "summary")
-                try:
-                    await self.send_with_retry(self.build_summary(pending, today))
-                except NotifyError as exc:
-                    self._unclaim(today, [e.id for e in pending])
-                    result["failed"] = len(pending)
-                    self.record_delivery(False, str(exc))
-                else:
-                    self._mark_sent(today, [e.id for e in pending])
-                    result["sent"] = len(pending)
-                    self.record_delivery(True, f"Summary for {len(pending)} entries")
-                return result
-            last_error = None
+            # Each user only gets reminders for their own entries, on their own topic.
+            by_owner: dict[int, list[repo.Entry]] = {}
             for e in pending:
-                if not self._claim(today, [e.id], "entry"):
+                owner = users.get(e.owner_id)
+                if owner is None or owner["disabled"]:
+                    result["skipped"] += 1
                     continue
-                try:
-                    await self.send_with_retry(self.build_entry_notification(e, today))
-                except NotifyError as exc:
-                    self._unclaim(today, [e.id])
-                    result["failed"] += 1
-                    last_error = str(exc)
-                else:
-                    self._mark_sent(today, [e.id])
-                    result["sent"] += 1
+                by_owner.setdefault(owner["id"], []).append(e)
+            last_error = None
+            for owner_id, items in by_owner.items():
+                topic = self.cfg.topic_for(users[owner_id]["username"])
+                if len(items) > threshold:
+                    result["summary"] = True
+                    ids = [e.id for e in items]
+                    self._claim(today, ids, "summary")
+                    try:
+                        await self.send_with_retry(self.build_summary(items, today, topic))
+                    except NotifyError as exc:
+                        self._unclaim(today, ids)
+                        result["failed"] += len(items)
+                        last_error = str(exc)
+                    else:
+                        self._mark_sent(today, ids)
+                        result["sent"] += len(items)
+                    continue
+                for e in items:
+                    if not self._claim(today, [e.id], "entry"):
+                        continue
+                    try:
+                        await self.send_with_retry(self.build_entry_notification(e, today, topic))
+                    except NotifyError as exc:
+                        self._unclaim(today, [e.id])
+                        result["failed"] += 1
+                        last_error = str(exc)
+                    else:
+                        self._mark_sent(today, [e.id])
+                        result["sent"] += 1
             if last_error:
                 self.record_delivery(False, last_error)
-            else:
-                self.record_delivery(True, f"{result['sent']} reminder(s) sent")
+            elif result["sent"]:
+                self.record_delivery(True, f"{result['sent']} reminder(s) sent to {len(by_owner)} user(s)")
             return result
 
     # ------------------------------------------------------------ bookkeeping
@@ -195,7 +207,7 @@ class ReminderService:
             Action("view", "Open", self._url(f"/entries/{entry_id}" if entry_id else "/")),
         ]
 
-    def build_entry_notification(self, e: repo.Entry, today) -> Notification:
+    def build_entry_notification(self, e: repo.Entry, today, topic: str | None = None) -> Notification:
         overdue = e.expiry is not None and today > e.expiry
         lines = []
         if e.center:
@@ -209,9 +221,10 @@ class ReminderService:
             click=self._url(f"/entries/{e.id}"),
             actions=self._actions(e.id),
             tags=["warning"] if overdue else ["hourglass_flowing_sand"],
+            topic=topic,
         )
 
-    def build_summary(self, entries: list[repo.Entry], today) -> Notification:
+    def build_summary(self, entries: list[repo.Entry], today, topic: str | None = None) -> Notification:
         expired = sum(1 for e in entries if e.expiry and today > e.expiry)
         msg = f"{len(entries)} certificates need attention today"
         if expired:
@@ -224,9 +237,10 @@ class ReminderService:
             click=self._url("/?status=attention"),
             actions=[Action("view", "Open", self._url("/?status=attention"))],
             tags=["warning"] if expired else ["hourglass_flowing_sand"],
+            topic=topic,
         )
 
-    def build_test(self) -> Notification:
+    def build_test(self, topic: str | None = None) -> Notification:
         return Notification(
             title="Certificate expiring: Test notification",
             message="Center: Test\nThis is a test from Certificate Tracker. The Snooze buttons should answer 'Test OK'.",
@@ -234,16 +248,19 @@ class ReminderService:
             click=self._url("/"),
             actions=self._actions(0),
             tags=["white_check_mark"],
+            topic=topic,
         )
 
-    async def send_test(self) -> tuple[bool, str]:
+    async def send_test(self, topic: str | None = None) -> tuple[bool, str]:
+        """Send a test message (to one user's topic) and report the result."""
         try:
-            await self.send_with_retry(self.build_test())
+            await self.send_with_retry(self.build_test(topic))
         except NotifyError as exc:
             self.record_delivery(False, f"Test: {exc}")
             return False, str(exc)
         self.record_delivery(True, "Test notification sent")
-        return True, f"Test notification sent via {self.notifier.name}."
+        where = f" to topic {topic}" if topic else ""
+        return True, f"Test notification sent via {self.notifier.name}{where}."
 
     # ------------------------------------------------------------ background loop
     async def _loop(self) -> None:

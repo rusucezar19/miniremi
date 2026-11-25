@@ -71,6 +71,18 @@ MIGRATIONS: list[str] = [
         value TEXT NOT NULL
     );
     """,
+    # 2: every entry belongs to one user (its creator)
+    """
+    ALTER TABLE entries ADD COLUMN owner_id INTEGER REFERENCES users(id);
+    UPDATE entries SET owner_id = (
+        SELECT a.user_id FROM audit_log a
+        WHERE a.entry_id = entries.id AND a.action = 'created' AND a.user_id IS NOT NULL
+        ORDER BY a.id LIMIT 1
+    );
+    UPDATE entries SET owner_id = (SELECT id FROM users WHERE is_admin = 1 ORDER BY id LIMIT 1)
+        WHERE owner_id IS NULL;
+    CREATE INDEX entries_owner ON entries(owner_id);
+    """,
 ]
 
 

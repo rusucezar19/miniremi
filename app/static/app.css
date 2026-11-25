@@ -183,6 +183,7 @@ table.grid { border-collapse: collapse; width: 100%; font-size: .92rem; }
 .detail-head h1 { margin: 0 0 .3rem; }
 .detail-head p { margin: .2rem 0; }
 .detail-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-start; }
+pre.cmd { background: var(--nod-bg); padding: .6rem .7rem; border-radius: 8px; overflow-x: auto; font-size: .82rem; white-space: pre; user-select: all; }
 .audit { list-style: none; padding: 0; margin: 0; }
 .audit > li { padding: .6rem 0; border-bottom: 1px solid var(--border); }
 .audit ul { margin: .2rem 0 0; padding-left: 1.1rem; }

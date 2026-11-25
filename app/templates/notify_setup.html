@@ -5,25 +5,32 @@
 {% if not server or not topic %}
   <div class="flash flash-warn">ntfy is not configured on the server yet (NTFY_PUBLIC_URL and NTFY_TOPIC). Ask the admin.</div>
 {% else %}
+<p>You get reminders only for <strong>your own entries</strong>, on your personal topic below.</p>
 <div class="panel setup-grid">
   <div>
     <ol class="steps">
       <li>Install the <strong>ntfy</strong> app (Google Play, F-Droid or the App Store).</li>
-      <li>In the app settings, add a user for <strong>{{ server }}</strong> with the ntfy username and password the admin gave you
-        (Android: Settings → Manage users; iPhone: Settings → Users).</li>
-      <li>Tap <strong>+</strong> to subscribe. Choose “Use another server”, enter the server URL and the topic below.
+      <li>In the ntfy app settings, add a user for <strong>{{ server }}</strong>
+        (Android: Settings → Manage users; iPhone: Settings → Users).
+        <br><span class="muted small">This is your <strong>ntfy login</strong>, which the admin creates for you.
+        It is separate from the login of this website.</span></li>
+      <li>Tap <strong>+</strong> to subscribe. Choose “Use another server”, enter the server URL and <strong>your topic</strong> below.
         On Android you can also scan the QR code or tap the link.</li>
-      <li>Allow notifications for ntfy. Ask the admin to press “Send test notification” to check it works.</li>
+      <li>Allow notifications for ntfy, then press “Send me a test notification” below.</li>
     </ol>
     <dl class="kv">
-      <dt>Server URL</dt><dd><code data-copy>{{ server }}</code></dd>
-      <dt>Topic</dt><dd><code data-copy>{{ topic }}</code></dd>
+      <dt>Server URL</dt><dd><code>{{ server }}</code></dd>
+      <dt>Your topic</dt><dd><code>{{ topic }}</code></dd>
       <dt>Subscribe link</dt><dd><a href="{{ deep_link }}">{{ deep_link }}</a></dd>
     </dl>
+    <form method="post" action="/notifications/test">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <button class="btn primary" type="submit">Send me a test notification</button>
+    </form>
   </div>
-  <div class="qr" aria-label="QR code with the subscribe link">{{ qr_svg|safe }}</div>
+  <div class="qr" aria-label="QR code with your subscribe link">{{ qr_svg|safe }}</div>
 </div>
 <p class="muted small">Notifications have “Snooze 1 day”, “Snooze 1 week” and “Open” buttons. To mark an entry as renewed, open it (a new expiry date is needed).</p>
 {% endif %}
-{% if notifier != 'ntfy' %}<p class="muted small">The server currently uses the <strong>{{ notifier }}</strong> channel.</p>{% endif %}
+{% if notifier != 'ntfy' %}<p class="muted small">The server currently uses the <strong>{{ notifier }}</strong> channel (messages only go to the server log).</p>{% endif %}
 {% endblock %}

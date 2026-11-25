@@ -21,7 +21,7 @@ class NtfyNotifier(Notifier):
 
     def payload(self, n: Notification) -> dict:
         body: dict = {
-            "topic": self.topic,
+            "topic": n.topic or self.topic,
             "title": n.title,
             "message": n.message,
             "priority": n.priority,

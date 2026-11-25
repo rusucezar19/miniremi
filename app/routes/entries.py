@@ -8,8 +8,10 @@ from datetime import date, timedelta
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from .. import repo
+from .. import csv_import, repo
+from ..permissions import entry_scope
 from ..reminders import STATUSES
+from ..repo import display_value
 from ..util import add_years, fmt_date, parse_date, parse_duration
 from .common import error_page, int_param, page, redirect, render, safe_next
 
@@ -23,8 +25,18 @@ def _ctx(request: Request):
         settings = repo.get_settings(c)
         columns = repo.get_columns(c)
         today = service.today()
-        entries = repo.list_entries(c, today, int(settings.get("approaching_days", 30)), columns)
+        entries = repo.list_entries(c, today, int(settings.get("approaching_days", 30)), columns,
+                                    owner_id=_scope(request))
     return settings, columns, today, entries
+
+
+def _scope(request: Request) -> int | None:
+    """Owner id whose entries this user may see/change (None = everyone's)."""
+    return entry_scope(request.state.user)
+
+
+def _owned(c, request: Request, entry_id: int) -> bool:
+    return repo.entry_owned(c, entry_id, _scope(request))
 
 
 def _filters(request: Request, columns):
@@ -211,7 +223,8 @@ async def entry_detail(request: Request):
     db, service = request.app.state.db, request.app.state.service
     with db.tx() as c:
         settings = repo.get_settings(c)
-        entry = repo.get_entry(c, entry_id, service.today(), int(settings.get("approaching_days", 30)))
+        entry = repo.get_entry(c, entry_id, service.today(), int(settings.get("approaching_days", 30)),
+                               owner_id=_scope(request))
         if entry is None:
             return error_page(request, 404, "Entry not found.")
         audit = repo.get_audit(c, entry_id)
@@ -226,8 +239,7 @@ async def update_entry(request: Request):
     db = request.app.state.db
     form = await request.form()
     with db.tx() as c:
-        row = c.execute("SELECT data FROM entries WHERE id = ?", (entry_id,)).fetchone()
-        if row is None:
+        if not _owned(c, request, entry_id):
             return error_page(request, 404, "Entry not found.")
         columns = repo.get_columns(c)
         try:
@@ -250,7 +262,8 @@ async def update_field(request: Request):
         return JSONResponse({"ok": False, "error": "Bad request"}, status_code=400)
     with db.tx() as c:
         settings = repo.get_settings(c)
-        entry = repo.get_entry(c, entry_id, service.today(), int(settings.get("approaching_days", 30)))
+        entry = repo.get_entry(c, entry_id, service.today(), int(settings.get("approaching_days", 30)),
+                               owner_id=_scope(request))
         col = repo.get_column(c, col_id)
         if entry is None or col is None:
             return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
@@ -268,7 +281,7 @@ async def delete_entry(request: Request):
     entry_id = int_param(request, "entry_id")
     db, service = request.app.state.db, request.app.state.service
     with db.tx() as c:
-        entry = repo.get_entry(c, entry_id, service.today())
+        entry = repo.get_entry(c, entry_id, service.today(), owner_id=_scope(request))
         if entry is None:
             return error_page(request, 404, "Entry not found.")
         if request.method == "GET":
@@ -283,6 +296,8 @@ async def delete_entry(request: Request):
 async def duplicate_entry(request: Request):
     entry_id = int_param(request, "entry_id")
     with request.app.state.db.tx() as c:
+        if not _owned(c, request, entry_id):
+            return error_page(request, 404, "Entry not found.")
         try:
             new_id = repo.duplicate_entry(c, entry_id, request.state.user)
         except LookupError:
@@ -313,6 +328,8 @@ async def snooze(request: Request):
         days = _snooze_days(form)
         until = service.today() + timedelta(days=days)
         with request.app.state.db.tx() as c:
+            if not _owned(c, request, entry_id):
+                raise LookupError
             repo.snooze_entry(c, entry_id, until, request.state.user)
     except ValueError as exc:
         return redirect(request, back, str(exc), "error")
@@ -326,6 +343,8 @@ async def unsnooze(request: Request):
     entry_id = int_param(request, "entry_id")
     form = await request.form()
     with request.app.state.db.tx() as c:
+        if not _owned(c, request, entry_id):
+            return error_page(request, 404, "Entry not found.")
         repo.unsnooze_entry(c, entry_id, request.state.user)
     return redirect(request, safe_next(form.get("back"), f"/entries/{entry_id}"), "Snooze cleared.")
 
@@ -350,6 +369,8 @@ async def bulk_snooze(request: Request):
     done = 0
     with request.app.state.db.tx() as c:
         for entry_id in ids[:500]:
+            if not _owned(c, request, entry_id):
+                continue
             try:
                 repo.snooze_entry(c, entry_id, until, request.state.user, source="bulk")
                 done += 1
@@ -371,6 +392,8 @@ async def renew(request: Request):
         if str(form.get("window_n", "")).strip():
             window = parse_duration(form.get("window_n"), form.get("window_unit", "days"))
         with request.app.state.db.tx() as c:
+            if not _owned(c, request, entry_id):
+                raise LookupError
             repo.renew_entry(c, entry_id, new_expiry, window, request.state.user, request.app.state.service.today())
     except ValueError as exc:
         return redirect(request, back, str(exc), "error")
@@ -399,3 +422,74 @@ async def export_csv(request: Request):
     filename = f"certificates-{today.strftime('%d-%m-%Y')}.csv"
     return Response(data.encode("utf-8"), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# ---------------------------------------------------------------- import
+class _RollBack(Exception):
+    pass
+
+
+def _import_ctx(request: Request, **extra):
+    with request.app.state.db.tx() as c:
+        columns = repo.get_columns(c)
+    help_rows = []
+    for col in columns:
+        text, example = csv_import.FORMAT_HELP.get(col.type, ("", None))
+        example = csv_import.ROLE_EXAMPLES.get(col.role, example)
+        if col.type == "select" and col.options:
+            example = col.options[0]
+        if col.default is not None:
+            text += f" (empty = {display_value(col, col.default)})"
+        help_rows.append({"col": col, "format": text, "example": example or ""})
+    return dict(columns=columns, help_rows=help_rows, max_rows=csv_import.MAX_ROWS, **extra)
+
+
+@page("import_entries")
+async def import_template(request: Request):
+    with request.app.state.db.tx() as c:
+        columns = repo.get_columns(c)
+    semicolon = request.query_params.get("sep") == "semicolon"
+    data = csv_import.template_csv(columns, ";" if semicolon else ",")
+    name = "certificates-template-semicolon.csv" if semicolon else "certificates-template.csv"
+    return Response(data, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@page("import_entries")
+async def import_entries(request: Request):
+    if request.method == "GET":
+        return render(request, "import.html", **_import_ctx(request))
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None or not hasattr(upload, "read"):
+        return render(request, "import.html", status_code=400, **_import_ctx(request, error="Choose a CSV file first."))
+    raw = await upload.read(csv_import.MAX_BYTES + 1)
+    user = request.state.user
+    try:
+        with request.app.state.db.tx() as c:
+            columns = repo.get_columns(c)
+            rows, warnings = csv_import.parse(raw, columns)
+            row_errors = []
+            for line_no, values in rows:
+                try:
+                    data = repo.build_data(c, columns, values)
+                except ValueError as exc:
+                    row_errors.append(f"Row {line_no}: {exc}")
+                    continue
+                repo.create_entry(c, data, user, details={"via": "CSV import"})
+            if row_errors:
+                raise _RollBack(row_errors)
+    except csv_import.ImportError_ as exc:
+        return render(request, "import.html", status_code=400, **_import_ctx(request, error=str(exc)))
+    except _RollBack as rb:
+        errors = rb.args[0]
+        shown = errors[:50]
+        if len(errors) > 50:
+            shown.append(f"… and {len(errors) - 50} more.")
+        return render(request, "import.html", status_code=400, **_import_ctx(
+            request, error=f"Nothing was imported: {len(errors)} row(s) have problems. Fix them in the file and upload it again.",
+            row_errors=shown, warnings=warnings))
+    msg = f"Imported {len(rows)} entr{'y' if len(rows) == 1 else 'ies'}."
+    if warnings:
+        msg += " Note: " + " ".join(warnings)
+    return redirect(request, "/", msg, "ok")

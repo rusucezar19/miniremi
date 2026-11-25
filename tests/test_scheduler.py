@@ -189,7 +189,7 @@ def test_retry_after_ntfy_failure(db, cfg):
     req = calls[-1]
     assert req.headers["authorization"] == "Bearer tk_secret"
     body = json.loads(req.content)
-    assert body["topic"] == "certs" and body["priority"] == 3
+    assert body["topic"] == "certs-admin" and body["priority"] == 3  # the owner's personal topic
     assert body["click"] == f"http://testserver/entries/{eid}"
     http_actions = [a for a in body["actions"] if a["action"] == "http"]
     assert [a["label"] for a in body["actions"]] == ["Snooze 1 day", "Snooze 1 week", "Open"]

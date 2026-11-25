@@ -20,8 +20,9 @@ class ConsoleNotifier(Notifier):
         self.sent.append(notification)
         labels = ", ".join(a.label for a in notification.actions)
         log.info(
-            "NOTIFY [p%s] %s | %s | click=%s | actions=[%s]",
+            "NOTIFY [p%s] to=%s %s | %s | click=%s | actions=[%s]",
             notification.priority,
+            notification.topic,
             notification.title,
             notification.message.replace("\n", " / "),
             notification.click,

@@ -113,9 +113,13 @@ async def column_delete(request: Request):
 # ---------------------------------------------------------------- users
 @page("manage_users")
 async def users_page(request: Request):
+    cfg = request.app.state.cfg
     with request.app.state.db.tx() as c:
         users = repo.list_users(c)
-    return render(request, "users.html", users=users, min_len=request.app.state.cfg.min_password_length)
+        counts = {r["owner_id"]: r["n"] for r in c.execute("SELECT owner_id, COUNT(*) AS n FROM entries GROUP BY owner_id")}
+    topics = {u["id"]: cfg.topic_for(u["username"]) for u in users}
+    return render(request, "users.html", users=users, min_len=cfg.min_password_length, topics=topics,
+                  counts=counts, base_topic=cfg.ntfy_topic)
 
 
 @page("manage_users")
@@ -232,7 +236,8 @@ async def settings_save(request: Request):
 
 @page("manage_settings")
 async def settings_test(request: Request):
-    ok, message = await request.app.state.service.send_test()
+    topic = request.app.state.cfg.topic_for(request.state.user["username"])
+    ok, message = await request.app.state.service.send_test(topic)
     return redirect(request, "/settings", message if ok else f"Test failed: {message}", "ok" if ok else "error")
 
 
@@ -241,7 +246,7 @@ async def settings_test(request: Request):
 async def notify_setup(request: Request):
     cfg = request.app.state.cfg
     server = cfg.ntfy_public_url
-    topic = cfg.ntfy_topic
+    topic = cfg.topic_for(request.state.user["username"]) if cfg.ntfy_topic else ""
     deep_link = qr_svg = None
     if server and topic:
         host = urlsplit(server).netloc
@@ -249,6 +254,14 @@ async def notify_setup(request: Request):
         qr_svg = segno.make(deep_link, error="m").svg_inline(scale=5, dark="#111", light="#fff", border=2)
     return render(request, "notify_setup.html", server=server, topic=topic, deep_link=deep_link, qr_svg=qr_svg,
                   notifier=request.app.state.notifier.name)
+
+
+@page("view_notification_setup")
+async def notify_test(request: Request):
+    """Any user can send a test message to their own topic."""
+    topic = request.app.state.cfg.topic_for(request.state.user["username"])
+    ok, message = await request.app.state.service.send_test(topic)
+    return redirect(request, "/notifications", message if ok else f"Test failed: {message}", "ok" if ok else "error")
 
 
 def new_setup_code() -> str:

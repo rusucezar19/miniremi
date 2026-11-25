@@ -58,7 +58,18 @@ def service(db, notifier, cfg):
     return ReminderService(db, notifier, cfg, sleep=no_sleep)
 
 
-def add_entry(db, expiry: date | None, window=(1, "weeks"), title="Cert", sub="Sub", center="North", snoozed_until=None) -> int:
+def user_id(db, username: str, is_admin: bool = True) -> int:
+    """Id of `username`, creating the user (with an unusable password hash) if needed."""
+    with db.tx() as c:
+        row = repo.get_user_by_name(c, username)
+        if row:
+            return row["id"]
+        return repo.create_user(c, username, "not-a-real-hash", is_admin=is_admin)
+
+
+def add_entry(db, expiry: date | None, window=(1, "weeks"), title="Cert", sub="Sub", center="North",
+              snoozed_until=None, owner="admin") -> int:
+    owner_id = user_id(db, owner)
     with db.tx() as c:
         cols = repo.get_columns(c)
         values = {
@@ -69,7 +80,7 @@ def add_entry(db, expiry: date | None, window=(1, "weeks"), title="Cert", sub="S
             repo.column_by_role(cols, "window").key: window,
         }
         data = repo.build_data(c, cols, values)
-        entry_id = repo.create_entry(c, data, "test")
+        entry_id = repo.create_entry(c, data, "test", owner_id=owner_id)
         if snoozed_until:
             repo.snooze_entry(c, entry_id, snoozed_until, "test")
     return entry_id

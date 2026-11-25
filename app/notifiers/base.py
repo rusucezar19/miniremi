@@ -29,6 +29,7 @@ class Notification:
     click: str | None = None
     actions: list[Action] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    topic: str | None = None  # recipient channel (ntfy topic); None = the notifier's default
 
 
 class Notifier(ABC):
