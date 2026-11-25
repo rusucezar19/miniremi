@@ -15,6 +15,8 @@ RUN pip install --root-user-action=ignore -r requirements.txt \
  && mkdir -p /data && chown app:app /data
 
 COPY app ./app
+# Files copied to a NAS share often lose "read for everyone"; the app runs as a non-root user.
+RUN chmod -R a+rX /srv/app
 
 USER 1000:1000
 EXPOSE 8080
